@@ -1,0 +1,27 @@
+# ==========================================
+# Backend (Spring Boot - Maven / STS / Eclipse)
+# ==========================================
+/backend/target/
+/backend/.apt_generated/
+/backend/.classpath
+/backend/.project
+/backend/.settings/
+/backend/*.iml
+/backend/.idea/
+*.class
+
+# ==========================================
+# Frontend (Vue / Node.js)
+# ==========================================
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.env*.local
+/frontend/.eslintcache
+
+# ==========================================
+# OS & IDE Common
+# ==========================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
