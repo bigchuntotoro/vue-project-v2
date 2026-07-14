@@ -1,27 +1,69 @@
 # ==========================================
-# Backend (Spring Boot - Maven / STS / Eclipse)
+# 1. Frontend (Vue.js / Node) Settings
 # ==========================================
-/backend/target/
-/backend/.apt_generated/
-/backend/.classpath
-/backend/.project
-/backend/.settings/
-/backend/*.iml
-/backend/.idea/
-*.class
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# Log files
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
 
 # ==========================================
-# Frontend (Vue / Node.js)
+# 2. Backend (Spring Boot / Maven) Settings
 # ==========================================
-/frontend/node_modules/
-/frontend/dist/
-/frontend/.env*.local
-/frontend/.eslintcache
+# Compiled class files & Compiled outputs
+backend/**/*.class
+backend/**/target/
+backend/target/
+
+# Log files
+backend/*.log
+
+# Package Files (Compiled Archive)
+backend/**/*.jar
+backend/**/*.war
+backend/**/*.nar
+backend/**/*.ear
+
+# Maven Specific files
+backend/pom.xml.tag
+backend/pom.xml.releaseBackup
+backend/pom.xml.nextDevelopmentVersion
+backend/pom.xml.expectedPOM
+backend/release.properties
+backend/dependency-reduced-pom.xml
+backend/buildNumber.properties
+backend/.mvn/timing.properties
+backend/.mvn/wrapper/.maven-wrapper.jar
+
 
 # ==========================================
-# OS & IDE Common
+# 3. Development Tools & OS (Shared)
 # ==========================================
-.DS_Store
-Thumbs.db
+# IntelliJ IDEA
 .idea/
-.vscode/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse / STS4
+.metadata/
+.classpath
+.project
+.settings/
+*.launch
+bin/
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini
