@@ -5,11 +5,18 @@
 <!-- 매퍼 인터페이스의 전체 경로와 일치해야 매핑됩니다. -->
 <mapper namespace="com.example.demo.mapper.BoardMapper">
 
-    <!-- 게시글 전체 목록 조회 -->
+    <!-- [수정] 게시글 목록 조회: 페이징을 위해 LIMIT와 OFFSET 추가 -->
     <select id="selectBoardList" resultType="com.example.demo.model.BoardDTO">
         SELECT board_id, title, writer, reg_date, view_cnt
         FROM vueboard
         ORDER BY board_id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- [추가] 페이징 버튼 계산을 위한 전체 게시글 개수 조회 -->
+    <select id="countBoard" resultType="int">
+        SELECT COUNT(*)
+        FROM vueboard
     </select>
 
     <!-- 게시글 상세 조회 -->

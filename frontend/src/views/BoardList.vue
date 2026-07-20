@@ -1,25 +1,59 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import axios from "axios";
 
 const router = useRouter();
-const boardList = ref([]); // 게시글 데이터를 담을 반응형 배열
 
-// 백엔드로부터 목록을 가져오는 함수
-const getList = async () => {
+// 페이징 관련 상태 관리
+const boardList = ref([]); // 현재 페이지의 게시글 데이터
+const currentPage = ref(1); // 현재 활성화된 페이지 번호
+const pageSize = ref(10); // 한 페이지당 보여줄 개수
+const totalItems = ref(0); // 전체 게시글 개수 (0으로 초기화하여 NaN 방지)
+
+// 총 페이지 수 계산
+const totalPages = computed(() => {
+  return Math.ceil(totalItems.value / pageSize.value) || 1;
+});
+
+// 백엔드 데이터 조회 함수
+const getList = async (page = 1) => {
   try {
-    const response = await axios.get("http://localhost:8080/api/board/list");
-    boardList.value = response.data;
+    const response = await axios.get("http://localhost:8080/api/board/list", {
+      params: {
+        page: page,
+        size: pageSize.value,
+      },
+    });
+
+    // 백엔드 반환 구조: { list: [...], total: 25 }
+    if (response.data && Array.isArray(response.data.list)) {
+      boardList.value = response.data.list;
+      totalItems.value = Number(response.data.total) || 0;
+    } else if (Array.isArray(response.data)) {
+      // 하위 호환성 예외 처리 (배열만 넘어왔을 경우)
+      boardList.value = response.data;
+      totalItems.value = response.data.length;
+    } else {
+      boardList.value = [];
+      totalItems.value = 0;
+    }
+
+    currentPage.value = page;
   } catch (error) {
     alert("목록을 불러오는데 실패했습니다.");
     console.error(error);
   }
 };
 
-// 컴포넌트가 화면에 마운트(장착)되면 실행
+// 페이지 변경 함수
+const changePage = (page) => {
+  if (page < 1 || page > totalPages.value) return;
+  getList(page);
+};
+
 onMounted(() => {
-  getList();
+  getList(1);
 });
 </script>
 
@@ -64,7 +98,10 @@ onMounted(() => {
             :key="board.boardId"
             @click="router.push(`/board/${board.boardId}`)"
           >
-            <td class="num-cell">{{ boardList.length - index }}</td>
+            <!-- 페이징 시 역순 번호 계산식 보정 -->
+            <td class="num-cell">
+              {{ totalItems - (currentPage - 1) * pageSize - index }}
+            </td>
             <td class="title-cell">{{ board.title }}</td>
             <td class="writer-cell">
               <span class="avatar">{{
@@ -87,6 +124,37 @@ onMounted(() => {
         </tbody>
       </table>
     </div>
+
+    <!-- [추가] 모던 페이징 네비게이션 바 -->
+    <div class="pagination-container" v-if="boardList.length > 0">
+      <button
+        class="page-nav-btn"
+        :disabled="currentPage === 1"
+        @click="changePage(currentPage - 1)"
+      >
+        이전
+      </button>
+
+      <div class="page-numbers">
+        <button
+          v-for="page in totalPages"
+          :key="page"
+          class="page-num-btn"
+          :class="{ active: currentPage === page }"
+          @click="changePage(page)"
+        >
+          {{ page }}
+        </button>
+      </div>
+
+      <button
+        class="page-nav-btn"
+        :disabled="currentPage === totalPages"
+        @click="changePage(currentPage + 1)"
+      >
+        다음
+      </button>
+    </div>
   </div>
 </template>
 
@@ -95,9 +163,8 @@ onMounted(() => {
 .container {
   width: 900px;
   margin: 50px auto;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   color: #333d4b; /* 토스 스타일의 깊은 그레이 */
 }
 
@@ -257,5 +324,63 @@ tbody tr:hover .title-cell {
   font-size: 13px;
   margin-top: 6px;
   color: #b0b8c1;
+}
+
+/* 페이징 컴포넌트 추가 스타일 */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+.page-numbers {
+  display: flex;
+  gap: 6px;
+}
+.page-nav-btn {
+  background-color: white;
+  border: 1px solid #d1d5db;
+  color: #4b5563;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.page-nav-btn:hover:not(:disabled) {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+.page-nav-btn:disabled {
+  color: #d1d5db;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+}
+.page-num-btn {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.page-num-btn:hover:not(.active) {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+.page-num-btn.active {
+  background-color: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
 }
 </style>
