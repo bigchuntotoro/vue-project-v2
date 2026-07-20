@@ -1,6 +1,7 @@
 package com.example.demo.mapper;
 
 import com.example.demo.model.BoardDTO;
+import com.example.demo.model.BoardFileDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -24,12 +25,12 @@ public interface BoardMapper {
     );
 
     BoardDTO selectBoardById(int boardId);
-
     void updateViewCount(int boardId);
-
     int insertBoard(BoardDTO boardDTO);
-
     int updateBoard(BoardDTO boardDTO);
-
     int deleteBoard(int boardId);
+
+    // [추가] 파일 등록 및 파일 목록 조회
+    int insertBoardFile(BoardFileDTO fileDTO);
+    List<BoardFileDTO> selectFilesByBoardId(int boardId);
 }

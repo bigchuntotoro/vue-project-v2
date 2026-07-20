@@ -5,39 +5,35 @@ import axios from "axios";
 
 const router = useRouter();
 
-// 페이징 관련 상태 관리
-const boardList = ref([]); // 현재 페이지의 게시글 데이터
-const currentPage = ref(1); // 현재 활성화된 페이지 번호
-const pageSize = ref(10); // 한 페이지당 보여줄 개수
-const totalItems = ref(0); // 전체 게시글 개수 (0으로 초기화하여 NaN 방지)
+// 페이징 및 데이터 상태
+const boardList = ref([]);
+const currentPage = ref(1);
+const pageSize = ref(10);
+const totalItems = ref(0);
 
-// [추가] 검색 관련 상태 관리
-const searchType = ref("all"); // 검색 기준 (all: 전체, title: 제목, writer: 작성자, content: 내용)
-const searchKeyword = ref(""); // 검색어 입력값
+// 검색 상태
+const searchType = ref("all");
+const searchKeyword = ref("");
 
-// 총 페이지 수 계산
 const totalPages = computed(() => {
   return Math.ceil(totalItems.value / pageSize.value) || 1;
 });
 
-// 백엔드 데이터 조회 함수 (검색 파라미터 포함)
 const getList = async (page = 1) => {
   try {
     const response = await axios.get("http://localhost:8080/api/board/list", {
       params: {
         page: page,
         size: pageSize.value,
-        searchType: searchType.value, // 검색 유형 전달
-        searchKeyword: searchKeyword.value, // 검색어 전달
+        searchType: searchType.value,
+        searchKeyword: searchKeyword.value,
       },
     });
 
-    // 백엔드 반환 구조: { list: [...], total: 25 }
     if (response.data && Array.isArray(response.data.list)) {
       boardList.value = response.data.list;
       totalItems.value = Number(response.data.total) || 0;
     } else if (Array.isArray(response.data)) {
-      // 하위 호환성 예외 처리 (배열만 넘어왔을 경우)
       boardList.value = response.data;
       totalItems.value = response.data.length;
     } else {
@@ -52,19 +48,16 @@ const getList = async (page = 1) => {
   }
 };
 
-// [추가] 검색 실행 함수 (검색 시 항상 1페이지부터 조회)
 const handleSearch = () => {
   getList(1);
 };
 
-// [추가] 검색 조건 초기화 함수
 const handleResetSearch = () => {
   searchType.value = "all";
   searchKeyword.value = "";
   getList(1);
 };
 
-// 페이지 변경 함수
 const changePage = (page) => {
   if (page < 1 || page > totalPages.value) return;
   getList(page);
@@ -77,7 +70,7 @@ onMounted(() => {
 
 <template>
   <div class="container">
-    <!-- 상단 헤더 영역 -->
+    <!-- 헤더 -->
     <div class="board-header">
       <div class="title-section">
         <h2>커뮤니티 게시판</h2>
@@ -99,7 +92,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- [추가] 검색 영역 -->
+    <!-- 검색 바 -->
     <div class="search-bar">
       <select v-model="searchType" class="search-select">
         <option value="all">전체 (제목+내용)</option>
@@ -120,7 +113,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- 테이블 카드 레이아웃 -->
+    <!-- 테이블 -->
     <div class="table-card">
       <table>
         <thead>
@@ -137,19 +130,44 @@ onMounted(() => {
             :key="board.boardId"
             @click="router.push(`/board/${board.boardId}`)"
           >
-            <!-- 페이징 시 역순 번호 계산식 보정 -->
             <td class="num-cell">
               {{ totalItems - (currentPage - 1) * pageSize - index }}
             </td>
-            <td class="title-cell">{{ board.title }}</td>
+
+            <!-- [첨부파일 표시 적용] 제목 영역 -->
+            <td class="title-cell">
+              <div class="title-wrapper">
+                <span class="title-text">{{ board.title }}</span>
+
+                <!-- fileList 배열 또는 fileCount 숫자로 존재 여부 확인 -->
+                <span
+                  v-if="
+                    (board.fileList && board.fileList.length > 0) ||
+                    board.fileCount > 0
+                  "
+                  class="file-badge"
+                  title="첨부파일 있음"
+                >
+                  📎
+                  <span class="file-count-text">
+                    {{
+                      board.fileList ? board.fileList.length : board.fileCount
+                    }}
+                  </span>
+                </span>
+              </div>
+            </td>
+
             <td class="writer-cell">
               <span class="avatar">{{
                 board.writer?.substring(0, 1) || "U"
               }}</span>
-              {{ board.writer }}
+              <span class="writer-name">{{ board.writer }}</span>
             </td>
             <td class="view-cell">
-              <span class="badge">{{ board.viewCnt }}</span>
+              <span class="badge">{{
+                board.viewCnt ?? board.viewCount ?? 0
+              }}</span>
             </td>
           </tr>
           <tr v-if="boardList.length === 0">
@@ -164,7 +182,7 @@ onMounted(() => {
       </table>
     </div>
 
-    <!-- 모던 페이징 네비게이션 바 -->
+    <!-- 페이지네이션 -->
     <div class="pagination-container" v-if="boardList.length > 0">
       <button
         class="page-nav-btn"
@@ -198,16 +216,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 시스템 폰트 및 모던 스타일 적용 */
 .container {
   width: 900px;
   margin: 50px auto;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
-  color: #333d4b; /* 토스 스타일의 깊은 그레이 */
+  color: #333d4b;
 }
 
-/* 헤더 스타일 */
+/* 헤더 */
 .board-header {
   display: flex;
   justify-content: space-between;
@@ -226,7 +243,7 @@ onMounted(() => {
   margin: 0;
 }
 
-/* [추가] 검색바 스타일 */
+/* 검색 */
 .search-bar {
   display: flex;
   gap: 8px;
@@ -242,10 +259,6 @@ onMounted(() => {
   outline: none;
   background-color: white;
   color: #374151;
-  transition: border-color 0.2s;
-}
-.search-select:focus {
-  border-color: #4f46e5;
 }
 .search-input {
   width: 240px;
@@ -254,10 +267,6 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
-}
-.search-input:focus {
-  border-color: #4f46e5;
 }
 .search-btn {
   background-color: #3b82f6;
@@ -268,10 +277,6 @@ onMounted(() => {
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-.search-btn:hover {
-  background-color: #2563eb;
 }
 .reset-btn {
   background-color: #f3f4f6;
@@ -281,13 +286,8 @@ onMounted(() => {
   font-size: 14px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
-}
-.reset-btn:hover {
-  background-color: #e5e7eb;
 }
 
-/* 버튼 스타일 (인디고 블루 테마) */
 .write-btn {
   background-color: #4f46e5;
   color: white;
@@ -301,15 +301,8 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
-  transition: all 0.2s ease;
-}
-.write-btn:hover {
-  background-color: #4338ca;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 12px -2px rgba(79, 70, 229, 0.3);
 }
 
-/* 테이블 카드 감싸기 (그림자 및 라운드 처리) */
 .table-card {
   background: white;
   border-radius: 16px;
@@ -322,9 +315,9 @@ table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  table-layout: fixed;
 }
 
-/* 테이블 헤더 */
 th {
   background-color: #f9fafb;
   color: #6b7280;
@@ -333,10 +326,8 @@ th {
   padding: 16px 24px;
   border-bottom: 1px solid #edf0f2;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-/* 테이블 바디 */
 td {
   padding: 18px 24px;
   border-bottom: 1px solid #f2f4f6;
@@ -344,44 +335,71 @@ td {
   vertical-align: middle;
 }
 
-tr:last-child td {
-  border-bottom: none;
-}
-
-/* 행 오버 효과 */
 tbody tr {
   cursor: pointer;
-  transition: background-color 0.15s ease;
 }
 tbody tr:hover {
   background-color: #f8fafc;
 }
 
-/* 셀별 커스텀 스타일 */
 .num-cell {
   color: #8b95a1;
   font-weight: 500;
   text-align: center;
 }
+
+/* 제목 셀 및 첨부파일 배지 스타일 */
 .title-cell {
+  vertical-align: middle;
+}
+
+.title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.title-text {
   font-weight: 600;
   color: #191f28;
-  max-width: 400px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-tbody tr:hover .title-cell {
-  color: #4f46e5; /* 마우스 올렸을 때 제목 색상 강조 */
+  min-width: 0;
+  flex-shrink: 1;
 }
 
-/* 작성자 프로필 느낌 아이콘 추가 */
+tbody tr:hover .title-text {
+  color: #4f46e5;
+}
+
+/* 첨부파일 배지 */
+.file-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  background-color: #e0e7ff;
+  color: #4338ca;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-weight: 600;
+  flex-shrink: 0; /* 제목이 길어져도 배지는 축소되지 않음 */
+  line-height: 1;
+}
+
+.file-count-text {
+  font-size: 11px;
+}
+
 .writer-cell {
   display: flex;
   align-items: center;
   gap: 10px;
   color: #4e5968;
 }
+
 .avatar {
   width: 26px;
   height: 26px;
@@ -393,11 +411,19 @@ tbody tr:hover .title-cell {
   justify-content: center;
   font-size: 11px;
   font-weight: 700;
+  flex-shrink: 0;
+}
+
+.writer-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .view-cell {
   text-align: center;
 }
+
 .badge {
   background-color: #f2f4f6;
   color: #6b7280;
@@ -407,18 +433,14 @@ tbody tr:hover .title-cell {
   font-weight: 500;
 }
 
-/* 데이터가 없을 때 스타일 */
 .empty-cell {
   padding: 60px 0;
-}
-.empty-state {
   text-align: center;
-  color: #8b95a1;
 }
 .empty-state p {
   margin: 0;
   font-size: 16px;
-  font-weight: 500;
+  color: #8b95a1;
 }
 .empty-state .sub {
   font-size: 13px;
@@ -426,7 +448,7 @@ tbody tr:hover .title-cell {
   color: #b0b8c1;
 }
 
-/* 페이징 컴포넌트 추가 스타일 */
+/* 페이징 */
 .pagination-container {
   display: flex;
   justify-content: center;
@@ -444,14 +466,8 @@ tbody tr:hover .title-cell {
   color: #4b5563;
   padding: 8px 14px;
   font-size: 13px;
-  font-weight: 500;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
-}
-.page-nav-btn:hover:not(:disabled) {
-  background-color: #f3f4f6;
-  border-color: #9ca3af;
 }
 .page-nav-btn:disabled {
   color: #d1d5db;
@@ -471,16 +487,10 @@ tbody tr:hover .title-cell {
   font-weight: 600;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
-}
-.page-num-btn:hover:not(.active) {
-  background-color: #f3f4f6;
-  border-color: #d1d5db;
 }
 .page-num-btn.active {
   background-color: #4f46e5;
   color: white;
   border-color: #4f46e5;
-  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
 }
 </style>

@@ -15,6 +15,10 @@ const board = ref({
   writer: "",
 });
 
+// 파일 관련 상태 관리
+const selectedFiles = ref([]); // 새로 선택한 파일들 (File 객체)
+const fileInputRef = ref(null);
+
 // 수정 모드일 경우 기존 데이터 세팅
 const initForm = async () => {
   if (boardId) {
@@ -30,6 +34,35 @@ const initForm = async () => {
   }
 };
 
+// 파일 선택 시 (최대 5개 제한 검증)
+const handleFileChange = (event) => {
+  const files = Array.from(event.target.files);
+
+  if (selectedFiles.value.length + files.length > 5) {
+    alert("첨부파일은 최대 5개까지만 등록 가능합니다.");
+    event.target.value = ""; // 인풋 초기화
+    return;
+  }
+
+  // 중복 선택 가능하도록 기존 배열에 추가
+  selectedFiles.value = [...selectedFiles.value, ...files];
+  event.target.value = ""; // 동일 파일 다시 선택 가능하도록 인풋 리셋
+};
+
+// 선택한 파일 목록에서 특정 파일 제거
+const removeSelectedFile = (index) => {
+  selectedFiles.value.splice(index, 1);
+};
+
+// 파일 용량 단위 변환 함수 (Bytes -> KB / MB)
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+};
+
 // 저장 버튼 클릭시 (등록 혹은 수정)
 const saveBoard = async () => {
   if (
@@ -37,13 +70,13 @@ const saveBoard = async () => {
     !board.value.content ||
     (!isEditMode.value && !board.value.writer)
   ) {
-    alert("모든 필드를 입력해주세요.");
+    alert("모든 필수 필드를 입력해주세요.");
     return;
   }
 
   try {
     if (isEditMode.value) {
-      // 1. 수정 처리 (PUT)
+      // 1. 수정 처리 (기존 PUT 방식 유지)
       await axios.put(
         `http://localhost:8080/api/board/${boardId}`,
         board.value,
@@ -51,13 +84,32 @@ const saveBoard = async () => {
       alert("수정되었습니다.");
       router.push(`/board/${boardId}`);
     } else {
-      // 2. 등록 처리 (POST)
-      await axios.post("http://localhost:8080/api/board", board.value);
+      // 2. 등록 처리 (Multipart/FormData 방식 전송)
+      const formData = new FormData();
+
+      // 게시글 JSON 객체를 Blob 형태로 포장
+      const boardBlob = new Blob([JSON.stringify(board.value)], {
+        type: "application/json",
+      });
+      formData.append("board", boardBlob);
+
+      // 선택된 파일들을 반복문으로 추가
+      selectedFiles.value.forEach((file) => {
+        formData.append("files", file);
+      });
+
+      await axios.post("http://localhost:8080/api/board", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
       alert("등록되었습니다.");
       router.push("/board");
     }
   } catch (error) {
-    alert("저장에 실패했습니다.");
+    console.error(error);
+    alert(error.response?.data || "저장에 실패했습니다.");
   }
 };
 
@@ -94,7 +146,6 @@ onMounted(() => {
 
       <div class="form-group">
         <label>작성자</label>
-        <!-- 수정 모드일 때는 작성자 수정 불가 처리 -->
         <input
           v-model="board.writer"
           type="text"
@@ -108,16 +159,64 @@ onMounted(() => {
         <label>내용</label>
         <textarea
           v-model="board.content"
-          rows="12"
+          rows="10"
           placeholder="나누고 싶은 이야기를 자유롭게 적어보세요."
         ></textarea>
+      </div>
+
+      <!-- 첨부파일 영역 (신규 등록 시에만 표시) -->
+      <div v-if="!isEditMode" class="form-group">
+        <div class="file-header">
+          <label>첨부파일</label>
+          <span class="file-count">
+            <b>{{ selectedFiles.length }}</b> / 5개
+          </span>
+        </div>
+
+        <!-- 커스텀 파일 선택 버튼 -->
+        <div class="file-upload-box" @click="fileInputRef.click()">
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            class="hidden-file-input"
+            @change="handleFileChange"
+          />
+          <div class="upload-placeholder">
+            <span class="upload-icon">📁</span>
+            <span>클릭하여 파일을 선택하세요 (최대 5개)</span>
+          </div>
+        </div>
+
+        <!-- 선택된 파일 리스트 -->
+        <ul v-if="selectedFiles.length > 0" class="file-list">
+          <li
+            v-for="(file, index) in selectedFiles"
+            :key="index"
+            class="file-item"
+          >
+            <div class="file-info">
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-size">({{ formatFileSize(file.size) }})</span>
+            </div>
+            <button
+              type="button"
+              class="remove-file-btn"
+              @click="removeSelectedFile(index)"
+            >
+              ✕
+            </button>
+          </li>
+        </ul>
       </div>
     </div>
 
     <!-- 하단 버튼 영역 -->
     <div class="btn-group">
-      <button class="cancel-btn" @click="router.back()">취소</button>
-      <button class="submit-btn" @click="saveBoard">
+      <button type="button" class="cancel-btn" @click="router.back()">
+        취소
+      </button>
+      <button type="button" class="submit-btn" @click="saveBoard">
         {{ isEditMode ? "수정 완료" : "등록하기" }}
       </button>
     </div>
@@ -129,9 +228,8 @@ onMounted(() => {
 .container {
   width: 700px;
   margin: 50px auto;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   color: #333d4b;
 }
 
@@ -179,7 +277,7 @@ onMounted(() => {
 }
 
 /* 인풋 및 텍스트에어리어 통합 모던 스타일 */
-input,
+input[type="text"],
 textarea {
   padding: 12px 16px;
   border: 1px solid #d1d5db;
@@ -191,39 +289,135 @@ textarea {
   outline: none;
 }
 
-/* 플레이스홀더 색상 은은하게 */
 input::placeholder,
 textarea::placeholder {
   color: #b0b8c1;
 }
 
-/* 포커스 되었을 때 트렌디한 효과 */
-input:focus,
+input[type="text"]:focus,
 textarea:focus {
   border-color: #4f46e5;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
-/* 수정 모드일 때 작성자 인풋 스타일 */
 .disabled-input {
   background-color: #f9fafb;
   color: #8b95a1;
   border-color: #e5e7eb;
   cursor: not-allowed;
 }
-.disabled-input:focus {
-  border-color: #e5e7eb;
-  box-shadow: none;
-}
 
-/* 텍스트 상자 리사이즈 조절 및 글꼴 일치 */
 textarea {
   resize: vertical;
   font-family: inherit;
   line-height: 1.5;
 }
 
-/* 버튼 그룹 및 개별 버튼 스타일 */
+/* ---------------- 파일 업로드 스타일 ---------------- */
+.file-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-count {
+  font-size: 13px;
+  color: #8b95a1;
+}
+
+.file-count b {
+  color: #4f46e5;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.file-upload-box {
+  border: 2px dashed #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  background-color: #f9fafb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.file-upload-box:hover {
+  border-color: #4f46e5;
+  background-color: #f5f3ff;
+}
+
+.upload-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.upload-icon {
+  font-size: 18px;
+}
+
+/* 파일 목록 스타일 */
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.file-name {
+  color: #374151;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 450px;
+}
+
+.file-size {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.remove-file-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.remove-file-btn:hover {
+  color: #ef4444;
+  background-color: #fee2e2;
+}
+
+/* ---------------- 버튼 스타일 ---------------- */
 .btn-group {
   display: flex;
   justify-content: flex-end;
@@ -240,7 +434,6 @@ button {
   transition: all 0.2s ease;
 }
 
-/* 취소 버튼 (회색 톤 무채색) */
 .cancel-btn {
   background-color: #f2f4f6;
   color: #4e5968;
@@ -249,7 +442,6 @@ button {
   background-color: #e5e8eb;
 }
 
-/* 등록/수정완료 버튼 (인디고 테마 반영) */
 .submit-btn {
   background-color: #4f46e5;
   color: white;

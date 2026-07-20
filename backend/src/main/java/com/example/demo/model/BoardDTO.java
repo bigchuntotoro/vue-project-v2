@@ -1,6 +1,8 @@
 package com.example.demo.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
+
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -15,4 +17,8 @@ public class BoardDTO {
     private String writer;
     private LocalDateTime regDate;
     private int viewCnt;
+    // [추가] 조회 시 첨부파일 목록을 담아 보낼 리스트
+    private List<BoardFileDTO> fileList;
+    // 🔥 목록 조회용 파일 개수 필드 추가
+    private int fileCount;
 }

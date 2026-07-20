@@ -6,7 +6,7 @@ import axios from "axios";
 const route = useRoute();
 const router = useRouter();
 const board = ref({});
-const boardId = route.params.id; // URL에 넘어온 글 번호
+const boardId = route.params.id;
 
 // 상세 데이터 요청
 const getDetail = async () => {
@@ -32,6 +32,19 @@ const deleteBoard = async () => {
       alert("삭제에 실패했습니다.");
     }
   }
+};
+
+// 💡 [추가] 이미지 파일 여부 확인 함수
+const isImage = (filename) => {
+  if (!filename) return false;
+  const ext = filename.split(".").pop().toLowerCase();
+  return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
+};
+
+// 💡 [추가] 백엔드 파일 다운로드/조회 URL 생성 (파일 PK 또는 saveName 기준)
+const getFileUrl = (saveName) => {
+  // 백엔드 static 리소스 설정 또는 FileDownload Controller 주소
+  return `http://localhost:8080/upload/${saveName}`;
 };
 
 onMounted(() => {
@@ -70,7 +83,53 @@ onMounted(() => {
 
       <!-- 2. 본문 영역 -->
       <div class="card-body">
+        <!-- 🖼️ [추가] 이미지 첨부파일 영역 (본문 상단에 자동 출력) -->
+        <div
+          v-if="board.fileList && board.fileList.length > 0"
+          class="image-gallery"
+        >
+          <template v-for="file in board.fileList" :key="file.fileId">
+            <div v-if="isImage(file.originalName)" class="image-item">
+              <img
+                :src="getFileUrl(file.saveName)"
+                :alt="file.originalName"
+                class="content-image"
+              />
+            </div>
+          </template>
+        </div>
+
+        <!-- 본문 텍스트 -->
         <div class="content">{{ board.content }}</div>
+
+        <!-- 📎 [추가] 전체 첨부파일 다운로드 목록 영역 -->
+        <div
+          v-if="board.fileList && board.fileList.length > 0"
+          class="attachment-section"
+        >
+          <div class="attachment-header">
+            <span>📎 첨부파일 ({{ board.fileList.length }})</span>
+          </div>
+          <ul class="file-list">
+            <li
+              v-for="file in board.fileList"
+              :key="file.fileId"
+              class="file-item"
+            >
+              <a
+                :href="getFileUrl(file.saveName)"
+                target="_blank"
+                download
+                class="file-download-link"
+              >
+                <span class="file-name">{{ file.originalName }}</span>
+                <span class="file-size" v-if="file.fileSize">
+                  ({{ Math.round(file.fileSize / 1024) }} KB)
+                </span>
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -94,9 +153,8 @@ onMounted(() => {
 .container {
   width: 750px;
   margin: 40px auto;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   color: #333d4b;
 }
 
@@ -126,7 +184,7 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 
-/* 카드 헤더 (제목 및 작성자 정보 블록) */
+/* 카드 헤더 */
 .card-header {
   padding: 32px 32px 24px 32px;
   border-bottom: 1px solid #f2f4f6;
@@ -182,15 +240,83 @@ onMounted(() => {
   min-height: 280px;
   background-color: #ffffff;
 }
+
+/* 🖼️ 이미지 갤러리 스타일 */
+.image-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.image-item {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+}
+.content-image {
+  width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  display: block;
+}
+
+/* 텍스트 본문 */
 .content {
   font-size: 16px;
   line-height: 1.8;
   color: #333d4b;
-  white-space: pre-wrap; /* 줄바꿈 및 공백 유지 */
+  white-space: pre-wrap;
   word-break: break-all;
 }
 
-/* 버튼 레이아웃 구조 다듬기 */
+/* 📎 첨부파일 목록 영역 스타일 */
+.attachment-section {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px dashed #e5e7eb;
+}
+.attachment-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 12px;
+}
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.file-item {
+  background-color: #f9fafb;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+}
+.file-download-link {
+  color: #4f46e5;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.file-download-link:hover {
+  text-decoration: underline;
+}
+.file-size {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* 버튼 스타일 */
 .btn-group {
   display: flex;
   justify-content: space-between;
@@ -211,7 +337,6 @@ button {
   transition: all 0.2s ease;
 }
 
-/* 목록 버튼 (담백한 회색 톤) */
 .list-btn {
   background-color: #f2f4f6;
   color: #4e5968;
@@ -220,7 +345,6 @@ button {
   background-color: #e5e8eb;
 }
 
-/* 수정 버튼 (메인 인디고 테마) */
 .edit-btn {
   background-color: #4f46e5;
   color: white;
@@ -229,7 +353,6 @@ button {
   background-color: #4338ca;
 }
 
-/* 삭제 버튼 (부드러운 레드 경고 톤) */
 .delete-btn {
   background-color: #fee2e2;
   color: #ef4444;

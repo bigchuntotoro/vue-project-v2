@@ -3,14 +3,17 @@ package com.example.demo.controller;
 import com.example.demo.model.BoardDTO;
 import com.example.demo.service.BoardService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController // 결과값을 JSON 문자열로 바로 응답합니다.
 @RequestMapping("/api/board") // 공통 URL 프리픽스
-@CrossOrigin(origins = "*") // Vue와의 CORS 통신 허용
+//@CrossOrigin(origins = "*") // Vue와의 CORS 통신 허용
 public class BoardController {
 
     @Autowired
@@ -38,9 +41,17 @@ public class BoardController {
     }
 
     // 3. 게시글 작성
-    @PostMapping
-    public ResponseEntity<String> registerBoard(@RequestBody BoardDTO boardDTO) {
-        boolean isSuccess = boardService.registerBoard(boardDTO);
+// [수정] 게시글 작성 (파일 업로드 지원 - multipart/form-data)
+    @PostMapping(consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
+    public ResponseEntity<String> registerBoard(
+            @RequestPart("board") BoardDTO boardDTO,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+
+        if (files != null && files.size() > 5) {
+            return ResponseEntity.badRequest().body("파일은 최대 5개까지만 업로드 가능합니다.");
+        }
+
+        boolean isSuccess = boardService.registerBoardWithFiles(boardDTO, files);
         return isSuccess ? ResponseEntity.ok("Success") : ResponseEntity.internalServerError().body("Fail");
     }
 
