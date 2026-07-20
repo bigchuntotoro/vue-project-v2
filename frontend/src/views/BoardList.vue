@@ -11,18 +11,24 @@ const currentPage = ref(1); // 현재 활성화된 페이지 번호
 const pageSize = ref(10); // 한 페이지당 보여줄 개수
 const totalItems = ref(0); // 전체 게시글 개수 (0으로 초기화하여 NaN 방지)
 
+// [추가] 검색 관련 상태 관리
+const searchType = ref("all"); // 검색 기준 (all: 전체, title: 제목, writer: 작성자, content: 내용)
+const searchKeyword = ref(""); // 검색어 입력값
+
 // 총 페이지 수 계산
 const totalPages = computed(() => {
   return Math.ceil(totalItems.value / pageSize.value) || 1;
 });
 
-// 백엔드 데이터 조회 함수
+// 백엔드 데이터 조회 함수 (검색 파라미터 포함)
 const getList = async (page = 1) => {
   try {
     const response = await axios.get("http://localhost:8080/api/board/list", {
       params: {
         page: page,
         size: pageSize.value,
+        searchType: searchType.value, // 검색 유형 전달
+        searchKeyword: searchKeyword.value, // 검색어 전달
       },
     });
 
@@ -44,6 +50,18 @@ const getList = async (page = 1) => {
     alert("목록을 불러오는데 실패했습니다.");
     console.error(error);
   }
+};
+
+// [추가] 검색 실행 함수 (검색 시 항상 1페이지부터 조회)
+const handleSearch = () => {
+  getList(1);
+};
+
+// [추가] 검색 조건 초기화 함수
+const handleResetSearch = () => {
+  searchType.value = "all";
+  searchKeyword.value = "";
+  getList(1);
 };
 
 // 페이지 변경 함수
@@ -78,6 +96,27 @@ onMounted(() => {
           />
         </svg>
         새 글 작성
+      </button>
+    </div>
+
+    <!-- [추가] 검색 영역 -->
+    <div class="search-bar">
+      <select v-model="searchType" class="search-select">
+        <option value="all">전체 (제목+내용)</option>
+        <option value="title">제목</option>
+        <option value="writer">작성자</option>
+        <option value="content">내용</option>
+      </select>
+      <input
+        type="text"
+        v-model="searchKeyword"
+        class="search-input"
+        placeholder="검색어를 입력하세요..."
+        @keyup.enter="handleSearch"
+      />
+      <button class="search-btn" @click="handleSearch">검색</button>
+      <button v-if="searchKeyword" class="reset-btn" @click="handleResetSearch">
+        초기화
       </button>
     </div>
 
@@ -116,8 +155,8 @@ onMounted(() => {
           <tr v-if="boardList.length === 0">
             <td colspan="4" class="empty-cell">
               <div class="empty-state">
-                <p>등록된 게시글이 없습니다.</p>
-                <p class="sub">첫 번째 이야기를 먼저 남겨보세요!</p>
+                <p>등록된 게시글이 없거나 검색 결과가 없습니다.</p>
+                <p class="sub">다른 검색어로 시도하거나 첫 글을 남겨보세요!</p>
               </div>
             </td>
           </tr>
@@ -125,7 +164,7 @@ onMounted(() => {
       </table>
     </div>
 
-    <!-- [추가] 모던 페이징 네비게이션 바 -->
+    <!-- 모던 페이징 네비게이션 바 -->
     <div class="pagination-container" v-if="boardList.length > 0">
       <button
         class="page-nav-btn"
@@ -173,7 +212,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .title-section h2 {
   font-size: 26px;
@@ -185,6 +224,67 @@ onMounted(() => {
   font-size: 14px;
   color: #8b95a1;
   margin: 0;
+}
+
+/* [추가] 검색바 스타일 */
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.search-select {
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  background-color: white;
+  color: #374151;
+  transition: border-color 0.2s;
+}
+.search-select:focus {
+  border-color: #4f46e5;
+}
+.search-input {
+  width: 240px;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-input:focus {
+  border-color: #4f46e5;
+}
+.search-btn {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.search-btn:hover {
+  background-color: #2563eb;
+}
+.reset-btn {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+  padding: 10px 14px;
+  font-size: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.reset-btn:hover {
+  background-color: #e5e7eb;
 }
 
 /* 버튼 스타일 (인디고 블루 테마) */

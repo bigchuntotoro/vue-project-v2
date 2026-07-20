@@ -16,15 +16,16 @@ public class BoardController {
     @Autowired
     private BoardService boardService;
 
-    // 1. 목록 조회 (페이징)
+    // 1. 목록 조회 (페이징 + 검색)
     @GetMapping("/list")
     public ResponseEntity<Map<String, Object>> getBoardList(
             @RequestParam(value = "page", defaultValue = "1") int page,
-            @RequestParam(value = "size", defaultValue = "10") int size) {
+            @RequestParam(value = "size", defaultValue = "10") int size,
+            @RequestParam(value = "searchType", defaultValue = "all") String searchType,
+            @RequestParam(value = "searchKeyword", required = false) String searchKeyword) {
 
-        // offset 계산 및 Mapper 호출은 이미 BoardServiceImpl에 구현되어 있으므로
-        // 서비스의 getBoardList만 호출해 주면 됩니다.
-        Map<String, Object> response = boardService.getBoardList(page, size);
+        // 검색 조건(searchType, searchKeyword)을 포함해서 서비스에 전달합니다.
+        Map<String, Object> response = boardService.getBoardList(page, size, searchType, searchKeyword);
 
         return ResponseEntity.ok(response);
     }

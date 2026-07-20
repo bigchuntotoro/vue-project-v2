@@ -6,8 +6,8 @@ import java.util.Map;
 
 public interface BoardService {
 
-    // 1. 페이징 처리된 목록과 전체 개수를 함께 조회 (Vue 반환용)
-    Map<String, Object> getBoardList(int page, int size);
+    // 1. 목록 조회 (페이징 + 검색)
+    Map<String, Object> getBoardList(int page, int size, String searchType, String searchKeyword);
 
     // 2. 게시글 상세 조회 (조회수 증가 포함)
     BoardDTO getBoardDetail(int boardId);

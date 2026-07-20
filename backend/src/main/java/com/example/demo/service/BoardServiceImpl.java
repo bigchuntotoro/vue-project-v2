@@ -4,7 +4,6 @@ import com.example.demo.mapper.BoardMapper;
 import com.example.demo.model.BoardDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,46 +15,40 @@ public class BoardServiceImpl implements BoardService {
     @Autowired
     private BoardMapper boardMapper;
 
-    // 1. 목록 조회 및 페이징 데이터 가공
     @Override
-    public Map<String, Object> getBoardList(int page, int size) {
-        // Vue에서 받은 page(1, 2, 3...)를 DB의 offset(0, 10, 20...)으로 연산
+    public Map<String, Object> getBoardList(int page, int size, String searchType, String searchKeyword) {
+        // 페이징 offset 계산 (예: 1페이지 = 0부터, 2페이지 = 10부터)
         int offset = (page - 1) * size;
 
-        // MyBatis Mapper 호출
-        List<BoardDTO> list = boardMapper.selectBoardList(size, offset);
-        int total = boardMapper.countBoard();
+        // Mapper를 통해 검색 조건이 반영된 목록 및 전체 개수 조회
+        List<BoardDTO> list = boardMapper.selectBoardList(offset, size, searchType, searchKeyword);
+        int total = boardMapper.selectBoardCount(searchType, searchKeyword);
 
-        // Vue의 response.data.list 및 response.data.total 구조와 매핑할 Map 생성
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", list);
-        result.put("total", total);
+        // Vue로 전달할 Map 구조 생성
+        Map<String, Object> response = new HashMap<>();
+        response.put("list", list);
+        response.put("total", total);
 
-        return result;
+        return response;
     }
 
-    // 2. 상세 조회 (조회수 증가 로직 포함)
     @Override
-    @Transactional // 조회수 증가와 상세조회가 하나의 트랜잭션으로 묶임
     public BoardDTO getBoardDetail(int boardId) {
-        // 상세 조회를 할 때 조회수 1 증가
+        // 상세 조회 시 조회수 1 증가
         boardMapper.updateViewCount(boardId);
-        return boardMapper.selectBoardDetail(boardId);
+        return boardMapper.selectBoardById(boardId);
     }
 
-    // 3. 게시글 등록
     @Override
-    public boolean registerBoard(BoardDTO board) {
-        return boardMapper.insertBoard(board) > 0;
+    public boolean registerBoard(BoardDTO boardDTO) {
+        return boardMapper.insertBoard(boardDTO) > 0;
     }
 
-    // 4. 게시글 수정
     @Override
-    public boolean modifyBoard(BoardDTO board) {
-        return boardMapper.updateBoard(board) > 0;
+    public boolean modifyBoard(BoardDTO boardDTO) {
+        return boardMapper.updateBoard(boardDTO) > 0;
     }
 
-    // 5. 게시글 삭제
     @Override
     public boolean removeBoard(int boardId) {
         return boardMapper.deleteBoard(boardId) > 0;
