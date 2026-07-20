@@ -83,6 +83,9 @@ onMounted(() => {
 
       <!-- 2. 본문 영역 -->
       <div class="card-body">
+        <!-- 본문 텍스트 -->
+        <div class="content">{{ board.content }}</div>
+
         <!-- 🖼️ [추가] 이미지 첨부파일 영역 (본문 상단에 자동 출력) -->
         <div
           v-if="board.fileList && board.fileList.length > 0"
@@ -98,9 +101,6 @@ onMounted(() => {
             </div>
           </template>
         </div>
-
-        <!-- 본문 텍스트 -->
-        <div class="content">{{ board.content }}</div>
 
         <!-- 📎 [추가] 전체 첨부파일 다운로드 목록 영역 -->
         <div

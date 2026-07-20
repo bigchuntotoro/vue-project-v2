@@ -17,8 +17,13 @@ public class BoardDTO {
     private String writer;
     private LocalDateTime regDate;
     private int viewCnt;
+
     // [추가] 조회 시 첨부파일 목록을 담아 보낼 리스트
     private List<BoardFileDTO> fileList;
-    // 🔥 목록 조회용 파일 개수 필드 추가
+
+    // 🔥 목록 조회용 파일 개수 필드
     private int fileCount;
+
+    // 💡 [추가] 게시글 수정 시 삭제할 파일 PK 목록 (Form-Data / JSON 통신용)
+    private List<Integer> deleteFileIds;
 }

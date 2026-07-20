@@ -25,13 +25,12 @@ public class BoardServiceImpl implements BoardService {
     private final String uploadPath = "C:/upload/";
 
     /**
-     * 1. 게시글 목록 조회 (페이징 + 검색 + 파일 개수 매핑)
+     * 1. 게시글 목록 조회
      */
     @Override
     public Map<String, Object> getBoardList(int page, int size, String searchType, String searchKeyword) {
         int offset = (page - 1) * size;
 
-        // DB에서 목록(fileCount 포함) 및 전체 개수 조회
         List<BoardDTO> list = boardMapper.selectBoardList(offset, size, searchType, searchKeyword);
         int total = boardMapper.selectBoardCount(searchType, searchKeyword);
 
@@ -43,18 +42,14 @@ public class BoardServiceImpl implements BoardService {
     }
 
     /**
-     * 2. 게시글 상세 조회 (조회수 증가 + 첨부파일 목록 주입)
+     * 2. 게시글 상세 조회
      */
     @Override
     @Transactional
     public BoardDTO getBoardDetail(int boardId) {
-        // 조회수 증가
         boardMapper.updateViewCount(boardId);
 
-        // 게시글 정보 조회
         BoardDTO board = boardMapper.selectBoardById(boardId);
-
-        // 첨부파일 목록 조회 후 바인딩
         if (board != null) {
             List<BoardFileDTO> files = boardMapper.selectFilesByBoardId(boardId);
             board.setFileList(files);
@@ -63,31 +58,75 @@ public class BoardServiceImpl implements BoardService {
     }
 
     /**
-     * 3. 게시글 및 첨부파일 등록 (트랜잭션 처리)
+     * 3. 게시글 및 첨부파일 등록
      */
     @Override
     @Transactional
     public boolean registerBoardWithFiles(BoardDTO board, List<MultipartFile> files) {
-        // 1) 첨부파일 개수 검증 (최대 5개)
         if (files != null && files.size() > 5) {
             throw new IllegalArgumentException("첨부파일은 최대 5개까지만 등록 가능합니다.");
         }
 
-        // 2) 게시글 DB 저장 (useGeneratedKeys에 의해 board.getBoardId()에 PK 주입됨)
         int result = boardMapper.insertBoard(board);
         if (result <= 0) {
             return false;
         }
 
-        // 3) 첨부파일 처리
+        saveFilesToDiskAndDB(board.getBoardId(), files);
+        return true;
+    }
+
+    /**
+     * 4. 게시글 수정 (본문 수정 + 삭제할 파일 제거 + 신규 파일 저장)
+     */
+    @Override
+    @Transactional
+    public boolean modifyBoardWithFiles(BoardDTO board, List<MultipartFile> files) {
+        // 1) 본문 내용 수정 (제목, 내용 등)
+        int updatedRows = boardMapper.updateBoard(board);
+        if (updatedRows <= 0) {
+            return false;
+        }
+
+        // 2) 삭제 요청된 기존 파일 처리
+        if (board.getDeleteFileIds() != null && !board.getDeleteFileIds().isEmpty()) {
+            for (Integer fileId : board.getDeleteFileIds()) {
+                BoardFileDTO fileDTO = boardMapper.selectFileById(fileId);
+                if (fileDTO != null) {
+                    File file = new File(fileDTO.getFilePath());
+                    if (file.exists()) {
+                        file.delete(); // 디스크 실제 파일 삭제
+                    }
+                    boardMapper.deleteFileById(fileId); // DB 파일 정보 삭제
+                }
+            }
+        }
+
+        // 3) 새로 첨부된 파일 추가 저장
+        saveFilesToDiskAndDB(board.getBoardId(), files);
+
+        return true;
+    }
+
+    /**
+     * 5. 게시글 삭제
+     */
+    @Override
+    public boolean removeBoard(int boardId) {
+        return boardMapper.deleteBoard(boardId) > 0;
+    }
+
+    /**
+     * 💡 공통 파일 저장 메서드
+     */
+    private void saveFilesToDiskAndDB(int boardId, List<MultipartFile> files) {
         if (files != null && !files.isEmpty()) {
             File dir = new File(uploadPath);
             if (!dir.exists()) {
-                dir.mkdirs(); // 저장 디렉터리가 없으면 생성
+                dir.mkdirs();
             }
 
             for (MultipartFile file : files) {
-                // 비어있는 파일 요청 방지
                 if (file == null || file.isEmpty() || file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty()) {
                     continue;
                 }
@@ -98,12 +137,10 @@ public class BoardServiceImpl implements BoardService {
                 String filePath = uploadPath + saveName;
 
                 try {
-                    // 실제 디스크에 파일 저장
                     file.transferTo(new File(filePath));
 
-                    // DB에 파일 정보 저장
                     BoardFileDTO fileDTO = new BoardFileDTO();
-                    fileDTO.setBoardId(board.getBoardId()); // 생성된 게시글 PK 연결
+                    fileDTO.setBoardId(boardId);
                     fileDTO.setOriginalName(originalName);
                     fileDTO.setSaveName(saveName);
                     fileDTO.setFilePath(filePath);
@@ -111,27 +148,9 @@ public class BoardServiceImpl implements BoardService {
 
                     boardMapper.insertBoardFile(fileDTO);
                 } catch (IOException e) {
-                    // 파일 저장 실패 시 예외를 던져 @Transactional에 의해 DB 게시글 저장건도 자동 롤백
                     throw new RuntimeException("파일 저장 중 오류가 발생했습니다.", e);
                 }
             }
         }
-        return true;
-    }
-
-    /**
-     * 4. 게시글 수정
-     */
-    @Override
-    public boolean modifyBoard(BoardDTO board) {
-        return boardMapper.updateBoard(board) > 0;
-    }
-
-    /**
-     * 5. 게시글 삭제
-     */
-    @Override
-    public boolean removeBoard(int boardId) {
-        return boardMapper.deleteBoard(boardId) > 0;
     }
 }

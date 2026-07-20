@@ -17,8 +17,8 @@ public interface BoardService {
     // 3. 게시글 및 첨부파일 등록 (최대 5개 처리)
     boolean registerBoardWithFiles(BoardDTO board, List<MultipartFile> files);
 
-    // 4. 게시글 수정
-    boolean modifyBoard(BoardDTO board);
+    // 4. 게시글 수정 (본문 수정 + 삭제할 파일 제거 + 신규 파일 저장)
+    boolean modifyBoardWithFiles(BoardDTO board, List<MultipartFile> files);
 
     // 5. 게시글 삭제
     boolean removeBoard(int boardId);

@@ -13,7 +13,6 @@ import java.util.Map;
 
 @RestController // 결과값을 JSON 문자열로 바로 응답합니다.
 @RequestMapping("/api/board") // 공통 URL 프리픽스
-//@CrossOrigin(origins = "*") // Vue와의 CORS 통신 허용
 public class BoardController {
 
     @Autowired
@@ -55,11 +54,15 @@ public class BoardController {
         return isSuccess ? ResponseEntity.ok("Success") : ResponseEntity.internalServerError().body("Fail");
     }
 
-    // 4. 게시글 수정
-    @PutMapping("/{boardId}")
-    public ResponseEntity<String> modifyBoard(@PathVariable int boardId, @RequestBody BoardDTO boardDTO) {
+    // 💡 4. 게시글 수정 (Multipart/Form-Data 수신 지원 수정)
+    @PutMapping(value = "/{boardId}", consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
+    public ResponseEntity<String> modifyBoard(
+            @PathVariable("boardId") int boardId,
+            @RequestPart("board") BoardDTO boardDTO,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files) {
+
         boardDTO.setBoardId(boardId); // URL의 boardId를 객체에 주입
-        boolean isSuccess = boardService.modifyBoard(boardDTO);
+        boolean isSuccess = boardService.modifyBoardWithFiles(boardDTO, files);
         return isSuccess ? ResponseEntity.ok("Success") : ResponseEntity.internalServerError().body("Fail");
     }
 

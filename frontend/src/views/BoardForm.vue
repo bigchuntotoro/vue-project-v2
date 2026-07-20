@@ -13,10 +13,12 @@ const board = ref({
   title: "",
   content: "",
   writer: "",
+  fileList: [], // 💡 기존 첨부파일 목록
 });
 
 // 파일 관련 상태 관리
-const selectedFiles = ref([]); // 새로 선택한 파일들 (File 객체)
+const selectedFiles = ref([]); // 새롭게 선택한 파일들 (File 객체)
+const deleteFileIds = ref([]); // 💡 수정 시 삭제할 기존 파일 PK 목록
 const fileInputRef = ref(null);
 
 // 수정 모드일 경우 기존 데이터 세팅
@@ -34,29 +36,50 @@ const initForm = async () => {
   }
 };
 
-// 파일 선택 시 (최대 5개 제한 검증)
+// 💡 이미지 파일 여부 확인
+const isImage = (filename) => {
+  if (!filename) return false;
+  const ext = filename.split(".").pop().toLowerCase();
+  return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
+};
+
+// 💡 백엔드 이미지 URL 생성
+const getFileUrl = (saveName) => {
+  return `http://localhost:8080/upload/${saveName}`;
+};
+
+// 💡 기존 파일 삭제 목록에 추가 (화면상에서 우선 제거)
+const removeExistingFile = (fileId) => {
+  deleteFileIds.value.push(fileId);
+  board.value.fileList = board.value.fileList.filter(
+    (file) => file.fileId !== fileId,
+  );
+};
+
+// 새로 추가할 파일 선택 시 (최대 5개 제한 검증)
 const handleFileChange = (event) => {
   const files = Array.from(event.target.files);
+  const currentTotalCount =
+    (board.value.fileList?.length || 0) + selectedFiles.value.length;
 
-  if (selectedFiles.value.length + files.length > 5) {
-    alert("첨부파일은 최대 5개까지만 등록 가능합니다.");
-    event.target.value = ""; // 인풋 초기화
+  if (currentTotalCount + files.length > 5) {
+    alert("첨부파일은 기존 파일 포함 최대 5개까지만 등록 가능합니다.");
+    event.target.value = "";
     return;
   }
 
-  // 중복 선택 가능하도록 기존 배열에 추가
   selectedFiles.value = [...selectedFiles.value, ...files];
-  event.target.value = ""; // 동일 파일 다시 선택 가능하도록 인풋 리셋
+  event.target.value = "";
 };
 
-// 선택한 파일 목록에서 특정 파일 제거
+// 선택한 신규 파일 목록에서 특정 파일 제거
 const removeSelectedFile = (index) => {
   selectedFiles.value.splice(index, 1);
 };
 
-// 파일 용량 단위 변환 함수 (Bytes -> KB / MB)
+// 파일 용량 단위 변환 함수
 const formatFileSize = (bytes) => {
-  if (bytes === 0) return "0 Bytes";
+  if (!bytes || bytes === 0) return "0 Bytes";
   const k = 1024;
   const sizes = ["Bytes", "KB", "MB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -75,33 +98,46 @@ const saveBoard = async () => {
   }
 
   try {
+    const formData = new FormData();
+
     if (isEditMode.value) {
-      // 1. 수정 처리 (기존 PUT 방식 유지)
-      await axios.put(
-        `http://localhost:8080/api/board/${boardId}`,
-        board.value,
-      );
+      // 💡 1. 수정 처리 (Multipart/FormData)
+      // 수정할 기본 데이터와 삭제할 파일 ID 리스트 전달
+      const updateData = {
+        title: board.value.title,
+        content: board.value.content,
+        deleteFileIds: deleteFileIds.value, // 삭제 대상 파일 ID 배열
+      };
+
+      const boardBlob = new Blob([JSON.stringify(updateData)], {
+        type: "application/json",
+      });
+      formData.append("board", boardBlob);
+
+      // 새롭게 추가 첨부한 파일들
+      selectedFiles.value.forEach((file) => {
+        formData.append("files", file);
+      });
+
+      await axios.put(`http://localhost:8080/api/board/${boardId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
       alert("수정되었습니다.");
       router.push(`/board/${boardId}`);
     } else {
-      // 2. 등록 처리 (Multipart/FormData 방식 전송)
-      const formData = new FormData();
-
-      // 게시글 JSON 객체를 Blob 형태로 포장
+      // 2. 신규 등록 처리
       const boardBlob = new Blob([JSON.stringify(board.value)], {
         type: "application/json",
       });
       formData.append("board", boardBlob);
 
-      // 선택된 파일들을 반복문으로 추가
       selectedFiles.value.forEach((file) => {
         formData.append("files", file);
       });
 
       await axios.post("http://localhost:8080/api/board", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
       alert("등록되었습니다.");
@@ -126,7 +162,7 @@ onMounted(() => {
       <p class="subtitle">
         {{
           isEditMode
-            ? "기존 내용을 다듬고 수정할 수 있습니다."
+            ? "기존 내용을 다듬고 첨부파일을 관리할 수 있습니다."
             : "새로운 이야기와 소식을 등록해 보세요."
         }}
       </p>
@@ -164,12 +200,52 @@ onMounted(() => {
         ></textarea>
       </div>
 
-      <!-- 첨부파일 영역 (신규 등록 시에만 표시) -->
-      <div v-if="!isEditMode" class="form-group">
+      <!-- 🖼️ [수정 모드] 기존 첨부파일 및 이미지 관리 목록 -->
+      <div
+        v-if="isEditMode && board.fileList && board.fileList.length > 0"
+        class="form-group"
+      >
+        <label>기존 첨부파일</label>
+        <ul class="file-list">
+          <li
+            v-for="file in board.fileList"
+            :key="file.fileId"
+            class="file-item existing-file-item"
+          >
+            <div class="file-info">
+              <!-- 이미지 파일인 경우 썸네일 노출 -->
+              <img
+                v-if="isImage(file.originalName)"
+                :src="getFileUrl(file.saveName)"
+                alt="thumb"
+                class="thumb-img"
+              />
+              <span v-else class="file-icon">📄</span>
+
+              <span class="file-name">{{ file.originalName }}</span>
+              <span class="file-size" v-if="file.fileSize"
+                >({{ formatFileSize(file.fileSize) }})</span
+              >
+            </div>
+            <button
+              type="button"
+              class="remove-file-btn"
+              @click="removeExistingFile(file.fileId)"
+              title="파일 삭제"
+            >
+              ✕
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- 📎 첨부파일 추가 업로드 영역 (등록/수정 공통) -->
+      <div class="form-group">
         <div class="file-header">
-          <label>첨부파일</label>
+          <label>{{ isEditMode ? "추가 파일 첨부" : "첨부파일" }}</label>
           <span class="file-count">
-            <b>{{ selectedFiles.length }}</b> / 5개
+            <b>{{ (board.fileList?.length || 0) + selectedFiles.length }}</b> /
+            5개
           </span>
         </div>
 
@@ -188,7 +264,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 선택된 파일 리스트 -->
+        <!-- 새로 선택된 파일 리스트 -->
         <ul v-if="selectedFiles.length > 0" class="file-list">
           <li
             v-for="(file, index) in selectedFiles"
@@ -196,6 +272,7 @@ onMounted(() => {
             class="file-item"
           >
             <div class="file-info">
+              <span class="new-tag">NEW</span>
               <span class="file-name">{{ file.name }}</span>
               <span class="file-size">({{ formatFileSize(file.size) }})</span>
             </div>
@@ -377,15 +454,43 @@ textarea {
   align-items: center;
   padding: 10px 14px;
   background-color: #f3f4f6;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
+}
+
+.existing-file-item {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 
 .file-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   overflow: hidden;
+}
+
+/* 🖼️ 기존 썸네일 이미지 스타일 */
+.thumb-img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
+}
+
+.file-icon {
+  font-size: 18px;
+}
+
+.new-tag {
+  font-size: 10px;
+  font-weight: 700;
+  background-color: #4f46e5;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .file-name {
@@ -394,7 +499,7 @@ textarea {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 450px;
+  max-width: 380px;
 }
 
 .file-size {
@@ -407,7 +512,7 @@ textarea {
   border: none;
   color: #9ca3af;
   font-size: 14px;
-  padding: 2px 6px;
+  padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
 }
